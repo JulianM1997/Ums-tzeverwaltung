@@ -1,0 +1,113 @@
+import sqlite3
+from dotenv import load_dotenv
+import os
+import tkinter
+from typing import Literal
+
+# Helpful (and needed) constants
+load_dotenv()
+dbname=os.getenv("DBNAME")
+assert dbname is not None
+DBNAME=dbname
+Monate = {
+    1: "Januar",
+    2: "Februar",
+    3: "März",
+    4: "April",
+    5: "Mai",
+    6: "Juni",
+    7: "Juli",
+    8: "August",
+    9: "September",
+    10: "Oktober",
+    11: "November",
+    12: "Dezember"
+}
+Categories: list[str]
+
+
+
+
+# Queries
+def make_simple_query(Query,Parameters:tuple=())-> list[tuple]:
+    with sqlite3.connect(DBNAME) as connection:
+        return connection.execute(Query,Parameters).fetchall()
+    
+def make_simple_read_query_and_get_headers_as_first_line(Query,Parameters:tuple=())-> list[tuple]:
+    with sqlite3.connect(DBNAME) as connection:
+        cursor=connection.execute(Query,Parameters)
+        description=cursor.description
+        headers=tuple(i[0] for i in description)
+        result=cursor.fetchall()
+        result.insert(0,headers)
+        return result
+
+# Read-Queries
+# Write-Queries   
+def createcategory(name: str) -> None:
+    Query="""INSERT INTO Ausgabenkategorie VALUES (?)"""
+    make_simple_query(Query,(name,))
+
+
+
+#tkinter
+
+def yesnowindow(Text: str, root=None, title:str|None=None)->bool:
+    Window=tkinter.Tk() if root==None else tkinter.Toplevel(root)
+    title=title if title is not None else ""
+    Window.title(title)
+    Confirmation=False
+    Textfeld=tkinter.Text(Window,height=5)
+    Textfeld.tag_configure("center",justify="center")
+    Textfeld.insert(tkinter.END,Text,"center")
+    Textfeld.pack()
+    def buttonclick(confirm: bool):
+        nonlocal Confirmation
+        Confirmation=confirm
+        Window.destroy()
+    for i in [True,False]:
+        Button=tkinter.Button(Window,text="Ja" if i else "Nein", command=lambda k=i: buttonclick(k),width=50,height=2)
+        Button.pack(side="left" if i else "right")
+        Window.bind(f"<{"j" if True else "n"}>",lambda e,k=i:buttonclick(i))
+    Window.mainloop()
+    return Confirmation
+
+def alldonewindow():
+    root=tkinter.Tk()
+    Text=tkinter.Text(root,font=("Arial",30))
+    Text.insert(tkinter.END,"All Done!")
+    Text.pack()
+    root.bind("<Return>",lambda e: root.destroy())
+    root.focus_force()
+    root.mainloop()
+
+
+
+
+# Sonstige
+
+def getcategories(sorted_by_number_of_appearances=False, in_what: Literal["KategorieZuordnung","mehrdeutige Umsaetze"]="KategorieZuordnung")->list[str]:
+    if not sorted_by_number_of_appearances:
+        Query="SELECT KategorieNAME FROM Ausgabenkategorie"
+    elif in_what=="KategorieZuordnung":
+        Query="SELECT KategorieNAME FROM Kategorien_ordered_by_vendors"
+    elif in_what=="mehrdeutige Umsaetze":
+        Query="SELECT KategorieNAME FROM Kategorien_ordered_by_payments_of_ambiguous_vendors"
+    else:
+        raise NotImplementedError
+    Result=make_simple_query(Query)
+    return [i[0] for i in Result]
+
+def most_relevant_categories()->list[str]:
+    Query="""
+    SELECT DISTINCT Kategorie
+    FROM ZahlungsübersichtJahr
+    ORDER BY ABS(Total) DESC
+    """
+    Result=make_simple_query(Query)
+    return [i[0] for i in Result]
+
+# def TabelleCursor(Curs):
+#     headers=[i[0] for i in Curs.description]
+#     data=Curs.fetchall()
+#     return tabulate(data,headers)
