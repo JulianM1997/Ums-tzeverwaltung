@@ -11,6 +11,15 @@ assert ORDNER is not None
 DBName=os.getenv("DBName")
 assert DBName is not None
 DBNAME=DBName
+ColumnnamesinDBbycolumnnameinCSV={"Buchung": "Buchung",
+                                  "Wertstellungsdatum": "Wertstellungsdatum",
+                                  "Auftraggeber/Empfänger": "AuftraggeberEmpfaenger",
+                                  "Buchungstext": "Buchungstext",
+                                  "Verwendungszweck": "Verwendungszweck",
+                                  "Betrag": "Betrag",
+                                  "Währung": "Währung",
+                                  "Notiz": "Notiz"}
+Columnsrelevantforhash=["Buchung", "Wertstellungsdatum", "AuftraggeberEmpfaenger", "Buchungstext", "Verwendungszweck", "Betrag", "Währung"]
 
 def initialize() -> None:
     with sqlite3.connect(DBNAME) as connection:
@@ -18,37 +27,49 @@ def initialize() -> None:
             script=file.read()
         connection.executescript(script)
 
+def is_valid_header(list: list[str]) -> bool:
+    return all([i in ColumnnamesinDBbycolumnnameinCSV.keys() for i in list])
 
-def bereinigeCSVmatrix(matrix: list[list[str]])-> list[list[str]]:
+
+def bereinigeCSVmatrixundheader(matrix: list[list[str]])-> tuple[list[list[str]],list[str]]:
     while matrix[-1]==[""]:
         matrix.pop()
     for i in range(len(matrix)):
         if matrix[i]!=[] and matrix[i][0]=="Buchung":
-            assert matrix[i]=="Buchung;Wertstellungsdatum;Auftraggeber/Empfänger;Buchungstext;Verwendungszweck;Betrag;Währung".split(";")
-            return matrix[i+1:]
+            assert is_valid_header(matrix[i])
+            return matrix[i+1:],[ColumnnamesinDBbycolumnnameinCSV[j] for j in matrix[i]]
     raise ValueError("csv is not of expected syntax")
         
-def Entriesnotyetindb(matrix: list[list[str]])-> list[list[str]]:
-    return [[createhashofrow(row)]+row for row in matrix if not entryindb(row)]
+def Entriesnotyetindb(matrix: list[list[str]],headers)-> tuple[list[list[str]],list[str]]:
+    return [[createhashofrow(row,headers)]+row for row in matrix if not entryindb(row,headers)], ["hashofentry"]+headers
 
-def entryindb(row: list[str]) -> bool:
+def entryindb(row: list[str], headers: list[str]) -> bool:
     sql=f"SELECT count(*) FROM Umsaetze WHERE hashofentry=? AND Buchung=?"
-    return connection.execute(sql,(createhashofrow(row),row[0])).fetchone()[0]!=0
+    return connection.execute(sql,(createhashofrow(row,headers),row[0])).fetchone()[0]!=0
 
 
-def createhashofrow(row: list[str])->str:
-    return hashlib.md5(",".join(row).encode()).hexdigest()
+def createhashofrow(row: list[str],headers: list[str])->str:
+    row_in_correct_order_for_consistent_hash=[
+        row[headers.index(header)] if header in headers else "" 
+        for header in Columnsrelevantforhash
+        ]
+    return hashlib.md5(",".join(row_in_correct_order_for_consistent_hash).encode()).hexdigest()
 
-def insertsql(matrix: list[list[str]]) -> None:
-    SQL="""INSERT INTO Umsaetze (hashofentry,
-    Buchung,
-    Wertstellungsdatum,
-    AuftraggeberEmpfaenger,
-    Buchungstext,
-    Verwendungszweck,
-    Betrag,
-    Währung)
-VALUES (?,?,?,?,?,?,?,?)"""
+def is_list_of_actual_columns(list):
+    SQL=f"""
+        PRAGMA table_info(Umsaetze)
+        """
+    table_info=connection.execute(SQL).fetchall()
+    actual_columns=[i[1] for i in table_info]
+    return all([i in actual_columns for i in list])
+
+def insertsql(matrix: list[list[str]], headers: list[str]) -> None:
+    assert is_list_of_actual_columns(headers) #make extra sure no SQL Injection may happen
+    assert len(matrix)==0 or len(matrix[0])==len(headers)
+    SQL=f"""
+        INSERT INTO Umsaetze ({", ".join(headers)})
+        VALUES ({",".join(("?" for i in range(len(headers))))})
+        """
     connection.executemany(SQL,matrix)
     connection.commit()
 
@@ -71,16 +92,16 @@ def tell_db_that_file_is_scanned(filename: str)->None:
     """
     connection.execute(Query,(filename,))
 
-def reformatnumbers(matrix: list[list[str]])-> list[list[str]]:
-    return [[entry if i!=5 else entry.replace('.', '').replace(',', '.') for i,entry in enumerate(row)] for row in matrix]
+def reformatnumbers(matrix: list[list[str]],headers: list[str])-> list[list[str]]:
+    return [[entry if headers[i]!="Betrag" else entry.replace('.', '').replace(',', '.') for i,entry in enumerate(row)] for row in matrix]
 
 def scancsv(Ordner, csvpath):
     with open(Ordner+"/"+csvpath,"r",encoding="cp1252", newline="") as file:
         csvmatrix=list(csv.reader(file,delimiter=";"))
-    csvmatrix=bereinigeCSVmatrix(csvmatrix)
-    csvmatrix=reformatnumbers(csvmatrix)
-    csvmatrix=Entriesnotyetindb(csvmatrix)
-    insertsql(csvmatrix)
+    csvmatrix,headers=bereinigeCSVmatrixundheader(csvmatrix)
+    csvmatrix=reformatnumbers(csvmatrix,headers)
+    csvmatrix,headers=Entriesnotyetindb(csvmatrix, headers)
+    insertsql(csvmatrix, headers)
     tell_db_that_file_is_scanned(csvpath)
 
 if not os.path.exists(DBNAME):

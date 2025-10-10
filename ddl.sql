@@ -7,7 +7,8 @@ CREATE TABLE Umsaetze (
     Verwendungszweck VARCHAR(256),
     Betrag NUMERIC(8,2),
     Währung VARCHAR(8),
-    KategorieifAuftraggeberEmpfaengerAmbiguous VARCHAR(32)
+    KategorieifAuftraggeberEmpfaengerAmbiguous VARCHAR(32),
+    Notiz VARCHAR(256)
     );
 
 CREATE TABLE Ausgabenkategorie (
