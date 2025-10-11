@@ -70,6 +70,29 @@ SELECT  Kategorie,
 FROM UmsaetzemitKategorien
 GROUP BY Kategorie, Einnahme, Jahr;
 
+CREATE VIEW InOutByMonth AS 
+SELECT   
+    CASE 
+        WHEN Betrag>0 THEN 1
+        ELSE 0
+    END AS Einnahme,
+    sum(Betrag) AS Total,
+    substr(Buchung,7,4) AS Jahr,
+    substr(Buchung,4,2) AS Monat
+FROM UmsaetzemitKategorien
+GROUP BY Einnahme, Jahr, Monat;
+
+CREATE VIEW InOutByYear AS 
+SELECT   
+    CASE 
+        WHEN Betrag>0 THEN 1
+        ELSE 0
+    END AS Einnahme,
+    sum(Betrag) AS Total,
+    substr(Buchung,7,4) AS Jahr
+FROM UmsaetzemitKategorien
+GROUP BY Einnahme, Jahr;
+
 CREATE VIEW Kategorien_ordered_by_vendors AS
 SELECT A.KategorieNAME AS KategorieNAME 
 FROM Ausgabenkategorie A

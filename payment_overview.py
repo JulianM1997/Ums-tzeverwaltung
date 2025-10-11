@@ -5,7 +5,7 @@ from tabulate import tabulate
 from Helpfulfunctions import *
 
 
-MAX_NUMBER_OF_COLUMNS_ON_SCREEN=5
+MAX_NUMBER_OF_COLUMNS_ON_SCREEN=7
 
 
 
@@ -41,11 +41,34 @@ def FormatierteEintraegeZahlungsübersichtZeilen(year,headers,mode:Literal["Mona
     print(In)
     Data=[
         [
-            f"{In[i][j-1]}{"/" if In[i][j-1]!="" and Out[i][j-1]!="" else ""} {Out[i][j-1]}" if j!=0 else LeftsideHeader[i+1] for j in range(len(In[i])+1)
+            mergeInOutDataPoint(In[i][j-1],Out[i][j-1]) if j!=0 else LeftsideHeader[i+1] for j in range(len(In[i])+1)
             ]
         for i in range(len(In))
         ]
     return Data
+
+def mergeInOutDataPoint(In:str,Out:str)->str:
+    return f"{In}{"/" if In!="" and Out!="" else ""}{Out}"
+            
+
+def GesamtSpalteData(Jahr: str)->list[list[str]]:
+    datamonth=make_simple_query("SELECT Einnahme, Total, Monat FROM InOutByMonth WHERE Jahr=?",(Jahr,))
+    datayear=make_simple_query("SELECT Einnahme, Total FROM InOutByMonth WHERE Jahr=?",(Jahr,))
+    InData=[[""]for i in range(13)]
+    OutData=[[""]for i in range(13)]
+    DataMap:dict[bool,list[list[str]]]={True: InData,False:OutData}
+    for entry in datamonth:
+        In=bool(entry[0])
+        Total=entry[1]
+        Monat=int(entry[2])
+        DataMap[In][Monat-1]=[Total]
+    for entry in datayear:
+        In=bool(entry[0])
+        Total=entry[1]
+        DataMap[In][12]=[Total]
+    return [[mergeInOutDataPoint(InData[i][0],OutData[i][0])] for i in range(13)]
+
+        
 
 
 def Zahlungsübersicht():
@@ -57,11 +80,13 @@ def Zahlungsübersicht():
     # sideheaders=[str(i)+" "+inout for i in range(1,13) for inout in ["Out","In"]]
     DataMonth=FormatierteEintraegeZahlungsübersichtZeilen(year,headers,"Monat")
     DataYear=FormatierteEintraegeZahlungsübersichtZeilen(year,headers,"Jahr")
-    Data=DataMonth+DataYear
+    MainData=DataMonth+DataYear
+    TotalColumn=GesamtSpalteData(year)
+    Data=[MainData[i]+TotalColumn[i] for i in range(13)]
     root=tkinter.Tk()
     root.state("zoomed")
     tabelle=tkinter.Text(root, font=("Courier New", 10))
-    tabelle.insert(tkinter.END,tabulate(Data, headers=[""]+headers,tablefmt="grid"))
+    tabelle.insert(tkinter.END,tabulate(Data, headers=[""]+headers+["Gesamt"],tablefmt="grid"))
     tabelle.pack(expand=True, fill="both")
     root.bind("<Return>",lambda e: root.destroy(
 
