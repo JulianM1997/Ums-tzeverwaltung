@@ -77,7 +77,12 @@ def categorizationwindow(line:tuple[str],headers:tuple[str],insertcategory,title
     Textfeld.insert(tkinter.END,"\n".join([f"{header}: {line[i]}" for i,header in enumerate(headers)]))
     Textfeld.pack()
     selected=tkinter.StringVar(root)
-    selected.set(sorted_categories[0])
+    suggestion=most_likely_category(line[headers.index('AuftraggeberEmpfaenger')])
+    if suggestion is None:
+        suggestion=sorted_categories[0]
+    else:
+        assert suggestion in sorted_categories
+    selected.set(suggestion)
     dropdown=tkinter.OptionMenu(root, selected, *sorted_categories)
     dropdown.pack()
     entry=tkinter.Entry(root)
@@ -126,6 +131,18 @@ def categorizeline(line: tuple[str], headers: tuple[str],level: Literal["line","
         title="Kategorie der Zahlung"
         words=line[headers.index("Verwendungszweck")].split()
     categorizationwindow(line,headers,insertcategory,title,categories_sorted_by_likelyhood(words))
+
+def most_likely_category(Text:str) -> str|None:
+    Wörter=tuple(Text.split())
+    Query=f"""
+    SELECT KategorieNAME
+    FROM WordLikelyCategory_mit_Likelyhood
+    WHERE Word IN ({",".join(["?" for i in Wörter])})
+    ORDER BY Likelyhood DESC
+    LIMIT 1
+    """
+    Result=make_simple_query(Query,Wörter)
+    return None if Result==[] else Result[0][0]
     
     
 

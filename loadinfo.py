@@ -28,22 +28,42 @@ def assign_most_likely_category():
     for word,_ in likelykeywords:
         totalappearancesofword[word]=totalappearancesofword.get(word,0)+likelykeywords[word,_]
     def pairinteresting(pair)->bool:
+        print(pair)
         if pair in knowncombinations:
             return False
         if (pair[0],"Mehrdeutig") in knowncombinations:
             return False
         if pair[1]=="Mehrdeutig":
             return False
+        if likelykeywords[pair]<2:
+            return False
         return likelykeywords[pair]>=totalappearancesofword[pair[0]]*2/3
+    print(max(likelykeywords))
+    print(likelykeywords)
     while  not pairinteresting(pair:=max(likelykeywords)):
         likelykeywords.pop(pair)
+        if likelykeywords=={}:
+            return
     pair=max(likelykeywords)
-    if likelykeywords[pair]<2:
-        return
-    if yesnowindow(f"Soll das Wort '{pair[0]}' der Kategorie '{pair[1]}' zugeordnet werden"):
+    Fragetext=f"""
+    Soll das Wort '{pair[0]}' der Kategorie '{pair[1]}' zugeordnet werden? 
+    Vorkommen: 
+    {"\n".join(Konten_mit_Word_im_Namen(pair[0]))}"""
+    print(Fragetext)
+    if yesnowindow(Fragetext,Textheight=min(2*Fragetext.count("\n"),30)):
         make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?)",pair)
     elif yesnowindow(f"Soll das Wort '{pair[0]}' als mehrdeutig gekennzeichnet werden?"):
         make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?)",(pair[0],"Mehrdeutig"))
+
+def Konten_mit_Word_im_Namen(Word)->list[str]:
+    Query="""
+    SELECT DISTINCT AuftraggeberEmpfaenger 
+    FROM Umsaetze 
+    WHERE AuftraggeberEmpfaenger LIKE ?
+    """
+    Vorkommen=make_simple_query(Query,(f"%{Word}%",))
+    print([i[0] for i in Vorkommen])
+    return [i[0] for i in Vorkommen]
     
 
 def openingmenu():
@@ -68,8 +88,6 @@ def openingmenu():
     root.mainloop()
     assert Job is not None
     associatedfunction[Job]()
-
-
 
 
 assign_most_likely_category()

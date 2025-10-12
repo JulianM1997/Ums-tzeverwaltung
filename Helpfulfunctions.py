@@ -52,12 +52,12 @@ def createcategory(name: str) -> None:
 
 #tkinter
 
-def yesnowindow(Text: str, root=None, title:str|None=None)->bool:
+def yesnowindow(Text: str, root=None, title:str|None=None,Textheight=5)->bool:
     Window=tkinter.Tk() if root==None else tkinter.Toplevel(root)
     title=title if title is not None else ""
     Window.title(title)
     Confirmation=False
-    Textfeld=tkinter.Text(Window,height=5)
+    Textfeld=tkinter.Text(Window,height=Textheight)
     Textfeld.tag_configure("center",justify="center")
     Textfeld.insert(tkinter.END,Text,"center")
     Textfeld.pack()
@@ -106,6 +106,32 @@ def most_relevant_categories()->list[str]:
     """
     Result=make_simple_query(Query)
     return [i[0] for i in Result]
+
+def delete_category(categoryname:str):
+    Query1="DELETE FROM KategorieZuordnung WHERE KategorieNAME=?"
+    Query2="""
+    UPDATE TABLE Umsaetze 
+    SET KategorieifAuftraggeberEmpfaengerAmbiguous=NULL 
+    WHERE KategorieifAuftraggeberEmpfaengerAmbiguous=?
+    """
+    make_simple_query(Query1,(categoryname,))
+    make_simple_query(Query2,(categoryname,))
+
+def rename_category(old,new):
+    Query1="""
+    UPDATE KategorieZuordnung 
+    SET KategorieNAME=?
+    WHERE KategorieNAME=?
+    """
+    Query2="""
+    UPDATE Umsaetze 
+    SET KategorieifAuftraggeberEmpfaengerAmbiguous=? 
+    WHERE KategorieifAuftraggeberEmpfaengerAmbiguous=?
+    """
+    make_simple_query(Query1,(new,old))
+    make_simple_query(Query2,(new,old))
+
+
 
 # def TabelleCursor(Curs):
 #     headers=[i[0] for i in Curs.description]

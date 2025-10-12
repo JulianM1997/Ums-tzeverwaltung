@@ -5,7 +5,7 @@ from tabulate import tabulate
 from Helpfulfunctions import *
 
 
-MAX_NUMBER_OF_COLUMNS_ON_SCREEN=7
+MAX_NUMBER_OF_COLUMNS_ON_SCREEN=6
 
 
 
@@ -37,7 +37,7 @@ def FormatierteEintraegeZahlungsübersichtZeilen(year,headers,mode:Literal["Mona
         assert Zeile[3]==year
         if Kategorie in headers:
             InOut[BetragPositiv][Monat-1 if mode=="Monat" else 0][headers.index(Kategorie)]=str(Total)
-    LeftsideHeader=Monate if mode=="Monat" else {1: "Insgesamt: "}
+    LeftsideHeader=Monate if mode=="Monat" else {1: f"Insgesamt ({year}): "}
     print(In)
     Data=[
         [
@@ -53,7 +53,7 @@ def mergeInOutDataPoint(In:str,Out:str)->str:
 
 def GesamtSpalteData(Jahr: str)->list[list[str]]:
     datamonth=make_simple_query("SELECT Einnahme, Total, Monat FROM InOutByMonth WHERE Jahr=?",(Jahr,))
-    datayear=make_simple_query("SELECT Einnahme, Total FROM InOutByMonth WHERE Jahr=?",(Jahr,))
+    datayear=make_simple_query("SELECT Einnahme, Total FROM InOutByYear WHERE Jahr=?",(Jahr,))
     InData=[[""]for i in range(13)]
     OutData=[[""]for i in range(13)]
     DataMap:dict[bool,list[list[str]]]={True: InData,False:OutData}
@@ -71,12 +71,11 @@ def GesamtSpalteData(Jahr: str)->list[list[str]]:
         
 
 
-def Zahlungsübersicht():
-    year="2025"
+def Zahlungsübersicht(year="2025",index=0):
     QueryresultJahr=ZahlungsübersichtnachZeiten("Jahr",onlyoneyear=True,year=year)
     KategorienOrdnung=most_relevant_categories()
     getcategories()
-    headers=KategorienOrdnung[:MAX_NUMBER_OF_COLUMNS_ON_SCREEN]
+    headers=KategorienOrdnung[index:min(index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN,len(KategorienOrdnung))]
     # sideheaders=[str(i)+" "+inout for i in range(1,13) for inout in ["Out","In"]]
     DataMonth=FormatierteEintraegeZahlungsübersichtZeilen(year,headers,"Monat")
     DataYear=FormatierteEintraegeZahlungsübersichtZeilen(year,headers,"Jahr")
@@ -88,7 +87,27 @@ def Zahlungsübersicht():
     tabelle=tkinter.Text(root, font=("Courier New", 10))
     tabelle.insert(tkinter.END,tabulate(Data, headers=[""]+headers+["Gesamt"],tablefmt="grid"))
     tabelle.pack(expand=True, fill="both")
-    root.bind("<Return>",lambda e: root.destroy(
-
-    ))
+    root.bind("<Return>",lambda e: root.destroy())
+    def move_to_left_or_right(Right:bool):
+        nonlocal Do_something_afterwards
+        nonlocal index
+        step=1 if Right else -1
+        if index+step>=0 and index+step+MAX_NUMBER_OF_COLUMNS_ON_SCREEN<=len(KategorienOrdnung):
+            Do_something_afterwards=True
+            index=index+step
+            root.destroy()
+    def change_year(Up:bool):
+        nonlocal Do_something_afterwards
+        nonlocal year
+        step=1 if Up else -1
+        Do_something_afterwards=True
+        year=str(int(year)+step)
+        root.destroy()
+    root.bind("<Left>",lambda e: move_to_left_or_right(False))
+    root.bind("<Right>",lambda e: move_to_left_or_right(True))
+    root.bind("<Up>",lambda e: change_year(False))
+    root.bind("<Down>",lambda e: change_year(True))
+    Do_something_afterwards=False
     root.mainloop()
+    if Do_something_afterwards:
+        Zahlungsübersicht(year,index)

@@ -37,6 +37,11 @@ CREATE TABLE WordLikelyCategory(
     KategorieNAME VARCHAR(16)
 );
 
+CREATE TABLE KontogruppenZuordnung(
+    GruppenNAME VARCHAR(16),
+    KontoNAME VARCHAR(256)
+);
+
 CREATE VIEW UmsaetzemitKategorien AS
 SELECT  U.*,
         CASE
@@ -109,6 +114,26 @@ ON A.KategorieNAME=U.KategorieifAuftraggeberEmpfaengerAmbiguous
 GROUP BY A.KategorieNAME
 ORDER BY count(U.hashofentry) DESC;
 
+CREATE VIEW Konten AS
+SELECT DISTINCT AuftraggeberEmpfaenger AS KontoNAME
+FROM Umsaetze;
+
+CREATE VIEW WordLikelyCategory_mit_Likelyhood AS 
+SELECT 
+    Word,
+    KategorieNAME,
+    CASE 
+        WHEN Totalnumberofappearances=0 THEN 0
+        ELSE Appearancesofcorrectcategory*1.0/Totalnumberofappearances 
+    END AS Likelyhood
+FROM (SELECT 
+        Word,
+        KategorieNAME,
+        (SELECT count(*) FROM Konten WHERE KontoNAME LIKE '%' || WORD || '%') AS Totalnumberofappearances,
+        (SELECT count(*) FROM KategorieZuordnung WHERE AuftraggeberEmpfaenger LIKE '%' || WORD || '%' AND KategorieNAME=WordLikelyCategory.KategorieNAME) AS Appearancesofcorrectcategory
+    FROM WordLikelyCategory
+    WHERE KategorieNAME!='Mehrdeutig');
+    
 INSERT INTO Ausgabenkategorie(KategorieNAME) 
 VALUES 
 ('Supermarkt'),
