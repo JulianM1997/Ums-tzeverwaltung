@@ -34,13 +34,39 @@ CREATE TABLE ScannedCSVs (
 
 CREATE TABLE WordLikelyCategory(
     Word VARCHAR(16),
-    KategorieNAME VARCHAR(16)
+    KategorieNAME VARCHAR(16),
+    isKettenName BOOLEAN
 );
 
 CREATE TABLE KontogruppenZuordnung(
     GruppenNAME VARCHAR(16),
     KontoNAME VARCHAR(256)
 );
+
+CREATE TABLE LikelyKontoGruppenMatch(
+    GruppenNAME VARCHAR(16),
+    KontoNAME VARCHAR(256)
+)
+
+CREATE TRIGGER addLikelyKontoGroupMatch
+BEFORE INSERT ON Umsaetze
+WHEN EXISTS(
+    SELECT 1 FROM WordLikelyCategory 
+    WHERE LOWER(NEW.AuftraggeberEmpfaenger) LIKE '%'||LOWER(WORD)||'%' AND isKettenName
+    )
+AND NOT EXISTS(
+    SELECT 1 FROM Umsaetze 
+    WHERE NEW.AuftraggeberEmpfaenger=AuftraggeberEmpfaenger
+    )
+BEGIN
+    INSERT INTO LikelyKontoGruppenMatch 
+    VALUES (
+        (
+            SELECT WORD FROM WordLikelyCategory 
+            WHERE LOWER(NEW.AuftraggeberEmpfaenger) LIKE '%'||LOWER(WORD)||'%' AND isKettenName 
+            LIMIT 1),
+            NEW.AuftraggeberEmpfaenger);
+END;
 
 CREATE VIEW UmsaetzemitKategorien AS
 SELECT  U.*,
@@ -51,6 +77,16 @@ SELECT  U.*,
 FROM Umsaetze U
 LEFT JOIN KategorieZuordnung K 
 ON U.AuftraggeberEmpfaenger=K.AuftraggeberEmpfaenger;
+
+CREATE VIEW UmsaetzemitGruppenzuordnung AS
+SELECT  U.*,
+        CASE
+            WHEN K.GruppenNAME IS NULL THEN U.AuftraggeberEmpfaenger
+            ELSE K.GruppenNAME
+        END AS Gruppe
+FROM Umsaetze U
+LEFT JOIN KontogruppenZuordnung K
+ON U.AuftraggeberEmpfaenger=K.KontoNAME;
 
 CREATE VIEW ZahlungsübersichtMonat AS 
 SELECT  Kategorie, 
@@ -74,6 +110,29 @@ SELECT  Kategorie,
     substr(Buchung,7,4) AS Jahr
 FROM UmsaetzemitKategorien
 GROUP BY Kategorie, Einnahme, Jahr;
+
+CREATE VIEW ZahlungsübersichtMonatnachGruppe AS 
+SELECT  Gruppe, 
+    CASE 
+        WHEN Betrag>0 THEN 1
+        ELSE 0
+    END AS Einnahme,
+    sum(Betrag) AS Total,
+    substr(Buchung,7,4) AS Jahr,
+    substr(Buchung,4,2) AS Monat
+FROM UmsaetzemitGruppenzuordnung
+GROUP BY Gruppe, Einnahme, Monat, Jahr;
+
+CREATE VIEW ZahlungsübersichtJahrnachGruppe AS 
+SELECT  Gruppe, 
+    CASE 
+        WHEN Betrag>0 THEN 1
+        ELSE 0
+    END AS Einnahme,
+    sum(Betrag) AS Total,
+    substr(Buchung,7,4) AS Jahr
+FROM UmsaetzemitGruppenzuordnung
+GROUP BY Gruppe, Einnahme, Jahr;
 
 CREATE VIEW InOutByMonth AS 
 SELECT   
@@ -129,8 +188,8 @@ SELECT
 FROM (SELECT 
         Word,
         KategorieNAME,
-        (SELECT count(*) FROM Konten WHERE KontoNAME LIKE '%' || WORD || '%') AS Totalnumberofappearances,
-        (SELECT count(*) FROM KategorieZuordnung WHERE AuftraggeberEmpfaenger LIKE '%' || WORD || '%' AND KategorieNAME=WordLikelyCategory.KategorieNAME) AS Appearancesofcorrectcategory
+        (SELECT count(*) FROM Konten WHERE LOWER(KontoNAME) LIKE '%' || LOWER(WORD) || '%') AS Totalnumberofappearances,
+        (SELECT count(*) FROM KategorieZuordnung WHERE LOWER(AuftraggeberEmpfaenger) LIKE '%' || LOWER(WORD) || '%' AND KategorieNAME=WordLikelyCategory.KategorieNAME) AS Appearancesofcorrectcategory
     FROM WordLikelyCategory
     WHERE KategorieNAME!='Mehrdeutig');
     

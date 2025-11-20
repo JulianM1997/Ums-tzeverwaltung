@@ -9,20 +9,7 @@ load_dotenv()
 dbname=os.getenv("DBNAME")
 assert dbname is not None
 DBNAME=dbname
-Monate = {
-    1: "Januar",
-    2: "Februar",
-    3: "März",
-    4: "April",
-    5: "Mai",
-    6: "Juni",
-    7: "Juli",
-    8: "August",
-    9: "September",
-    10: "Oktober",
-    11: "November",
-    12: "Dezember"
-}
+MONATE=[ "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November","Dezember"]
 Categories: list[str]
 
 
@@ -63,12 +50,14 @@ def yesnowindow(Text: str, root=None, title:str|None=None,Textheight=5)->bool:
     Textfeld.pack()
     def buttonclick(confirm: bool):
         nonlocal Confirmation
+        print(f"{confirm} received")
         Confirmation=confirm
         Window.destroy()
     for i in [True,False]:
         Button=tkinter.Button(Window,text="Ja" if i else "Nein", command=lambda k=i: buttonclick(k),width=50,height=2)
         Button.pack(side="left" if i else "right")
-        Window.bind(f"<{"j" if True else "n"}>",lambda e,k=i:buttonclick(i))
+        Window.bind(f"<{"j" if i else "n"}>",lambda e,k=i:buttonclick(k))
+    Window.focus_force()
     Window.mainloop()
     return Confirmation
 

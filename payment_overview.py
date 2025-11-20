@@ -1,51 +1,54 @@
 from typing import Literal
 from tabulate import tabulate
-
+import textwrap
 
 from Helpfulfunctions import *
 
 
-MAX_NUMBER_OF_COLUMNS_ON_SCREEN=6
+MAX_NUMBER_OF_COLUMNS_ON_SCREEN=5
+MAX_HEADER_WIDTH=20
 
 
 
-def ZahlungsübersichtnachZeiten(dimension: Literal["Monat","Jahr"],onlyoneyear=True,year="2025")->list[tuple]:
-    if onlyoneyear:
-        whereClause=" WHERE Jahr=?"
-        parameters=(year,)
-    else:
-        whereClause=""
-        parameters=()
-    Query=f"""
-        SELECT * FROM Zahlungsübersicht{dimension}
-        """+whereClause
-    with sqlite3.connect(DBNAME) as connection:
-        return connection.execute(Query,parameters).fetchall()
 
-def FormatierteEintraegeZahlungsübersichtZeilen(year,headers,mode:Literal["Monat","Jahr"]):
-    QueryresultMonat=ZahlungsübersichtnachZeiten(mode,onlyoneyear=True,year=year)
-    Numberofentries=12 if mode=="Monat" else 1
-    In=[["" for i in headers] for j in range(Numberofentries)]
-    Out=[["" for i in headers] for j in range(Numberofentries)]
+def ConvertqueryresultwithX_Y_ValueColumns_TO_XxY_Table_and_unite_pos_and_neg_values(Queryresult:list[tuple],headerlist:tuple[str],XColumnName:str,YColumnName:str,ValueColumnName:str,PossibleXvalues:list,InterestingYvalues:list[str]):
+    In=[["" for i in InterestingYvalues] for j in PossibleXvalues]
+    Out=[["" for i in InterestingYvalues] for j in PossibleXvalues]
     InOut=[Out,In]
-    for Zeile in QueryresultMonat:
-        BetragPositiv: Literal[0,1]=Zeile[1]
-        Kategorie: str=Zeile[0]
-        if mode=="Monat":
-            Monat=int(Zeile[4])
-        Total=Zeile[2]
-        assert Zeile[3]==year
-        if Kategorie in headers:
-            InOut[BetragPositiv][Monat-1 if mode=="Monat" else 0][headers.index(Kategorie)]=str(Total)
-    LeftsideHeader=Monate if mode=="Monat" else {1: f"Insgesamt ({year}): "}
-    print(In)
+    for Zeile in Queryresult:
+        Yvalue: str=Zeile[headerlist.index(YColumnName)]
+        Xvalue=Zeile[headerlist.index(XColumnName)]
+        print(Xvalue,PossibleXvalues)
+        assert Xvalue in PossibleXvalues
+        Value=int(Zeile[headerlist.index(ValueColumnName)])
+        ValuePositive=Value>=0
+        if Yvalue in InterestingYvalues:
+            InOut[ValuePositive][PossibleXvalues.index(Xvalue)][InterestingYvalues.index(Yvalue)]=str(Value)
     Data=[
         [
-            mergeInOutDataPoint(In[i][j-1],Out[i][j-1]) if j!=0 else LeftsideHeader[i+1] for j in range(len(In[i])+1)
+            mergeInOutDataPoint(In[i][j],Out[i][j]) for j in range(len(In[i]))
             ]
         for i in range(len(In))
         ]
     return Data
+
+def appendleftsideheaderstotable(data:list[list[str]],leftsideheaders:list[str])->list[list[str]]:
+    return [[leftsideheaders[i]]+row for i,row in enumerate(data)]
+
+
+def TabellenWerteZahlungsübersichtZeilen(year:str,headers:list[str],mode:Literal["Monat","Jahr"],Queryheaders:tuple[str],Queryresult:list[tuple],ColumnNameOfHeaderinQuery:str):
+    Leftsideheaders=MONATE if mode=="Monat" else [year]
+    Data=ConvertqueryresultwithX_Y_ValueColumns_TO_XxY_Table_and_unite_pos_and_neg_values(
+        Queryresult,
+        Queryheaders,
+        XColumnName=mode,
+        YColumnName=ColumnNameOfHeaderinQuery,
+        ValueColumnName="Total",
+        PossibleXvalues=([f"{i:02d}" for i in range(1,13)] if mode=="Monat" else [year]),
+        InterestingYvalues=headers
+        )
+    return appendleftsideheaderstotable(Data,Leftsideheaders)
+
 
 def mergeInOutDataPoint(In:str,Out:str)->str:
     return f"{In}{"/" if In!="" and Out!="" else ""}{Out}"
@@ -68,23 +71,21 @@ def GesamtSpalteData(Jahr: str)->list[list[str]]:
         DataMap[In][12]=[Total]
     return [[mergeInOutDataPoint(InData[i][0],OutData[i][0])] for i in range(13)]
 
-        
 
-
-def Zahlungsübersicht(year="2025",index=0):
-    QueryresultJahr=ZahlungsübersichtnachZeiten("Jahr",onlyoneyear=True,year=year)
-    KategorienOrdnung=most_relevant_categories()
-    getcategories()
-    headers=KategorienOrdnung[index:min(index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN,len(KategorienOrdnung))]
+def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,YeardataQuery:str,ColumnNameofHeaderinQuery:str,year="2025",index=0):
+    headers=ColumnOrdnung[index:min(index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN,len(ColumnOrdnung))]
     # sideheaders=[str(i)+" "+inout for i in range(1,13) for inout in ["Out","In"]]
-    DataMonth=FormatierteEintraegeZahlungsübersichtZeilen(year,headers,"Monat")
-    DataYear=FormatierteEintraegeZahlungsübersichtZeilen(year,headers,"Jahr")
-    MainData=DataMonth+DataYear
+    MonthlydataQueryResult=make_simple_read_query_and_get_headers_as_first_line(MonthlydataQuery,(year,))
+    YeardataQueryResult=make_simple_read_query_and_get_headers_as_first_line(YeardataQuery,(year,))
+    TableDataMonth=TabellenWerteZahlungsübersichtZeilen(year,headers,"Monat",MonthlydataQueryResult.pop(0),MonthlydataQueryResult,ColumnNameofHeaderinQuery)
+    TableDataYear=TabellenWerteZahlungsübersichtZeilen(year,headers,"Jahr",YeardataQueryResult.pop(0),YeardataQueryResult,ColumnNameofHeaderinQuery)
+    MainData=TableDataMonth+TableDataYear
     TotalColumn=GesamtSpalteData(year)
     Data=[MainData[i]+TotalColumn[i] for i in range(13)]
     root=tkinter.Tk()
     root.state("zoomed")
     tabelle=tkinter.Text(root, font=("Courier New", 10))
+    headers=[textwrap.fill(i,width=MAX_HEADER_WIDTH) for i in headers]
     tabelle.insert(tkinter.END,tabulate(Data, headers=[""]+headers+["Gesamt"],tablefmt="grid"))
     tabelle.pack(expand=True, fill="both")
     root.bind("<Return>",lambda e: root.destroy())
@@ -92,7 +93,7 @@ def Zahlungsübersicht(year="2025",index=0):
         nonlocal Do_something_afterwards
         nonlocal index
         step=1 if Right else -1
-        if index+step>=0 and index+step+MAX_NUMBER_OF_COLUMNS_ON_SCREEN<=len(KategorienOrdnung):
+        if index+step>=0 and index+step+MAX_NUMBER_OF_COLUMNS_ON_SCREEN<=len(ColumnOrdnung):
             Do_something_afterwards=True
             index=index+step
             root.destroy()
@@ -110,4 +111,43 @@ def Zahlungsübersicht(year="2025",index=0):
     Do_something_afterwards=False
     root.mainloop()
     if Do_something_afterwards:
-        Zahlungsübersicht(year,index)
+        Zahlungsübersicht_neu(ColumnOrdnung,MonthlydataQuery,YeardataQuery,ColumnNameofHeaderinQuery,year,index)
+
+def ZahlungsübersichtNachKategorie():
+    ColumnOrdnung=most_relevant_categories()
+    def Querybydimension(dimension: Literal["Monat","Jahr"])->str:
+        return f"""
+            SELECT * FROM Zahlungsübersicht{dimension}
+            WHERE Jahr=?
+            """
+    Zahlungsübersicht_neu(
+        ColumnOrdnung=ColumnOrdnung,
+        MonthlydataQuery=Querybydimension("Monat"),
+        YeardataQuery=Querybydimension("Jahr"),
+        ColumnNameofHeaderinQuery="Kategorie"
+    )
+
+def Detailansicht():
+    ÜbersichtnachLadenetc()
+
+def most_relevant_chains(year):
+    Query=f"""
+            SELECT Gruppe FROM ZahlungsübersichtJahrnachGruppe
+            WHERE Jahr=?
+            ORDER BY Total
+            """
+    Result=make_simple_query(Query,(year,))
+    return [i[0] for i in Result]
+
+def ÜbersichtnachLadenetc():
+    def Querybydimension(dimension: Literal["Monat","Jahr"])->str:
+        return f"""
+            SELECT * FROM Zahlungsübersicht{dimension}nachGruppe
+            WHERE Jahr=?
+            """
+    Zahlungsübersicht_neu(
+        ColumnOrdnung=most_relevant_chains("2025"),
+        MonthlydataQuery=Querybydimension("Monat"),
+        YeardataQuery=Querybydimension("Jahr"),
+        ColumnNameofHeaderinQuery="Gruppe"
+    )

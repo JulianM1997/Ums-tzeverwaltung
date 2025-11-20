@@ -18,9 +18,15 @@ def getlikelykeywords() -> dict[tuple[str,str],int]:#The goal is to find likely 
             numberofwordcategorycombination[word,category]=numberofwordcategorycombination.get((word,category),0)+1
     return numberofwordcategorycombination
         
+def assign_likely_groups():
+    Likely_Gruppenzuordnung=make_simple_query("SELECT GruppenNAME, KontoNAME FROM LikelyKontoGruppenMatch")
+    for Gruppe,Konto in Likely_Gruppenzuordnung:
+        if yesnowindow(f"Soll das Konto {Konto} der Gruppe {Gruppe} zugeordnet werden?"):
+            make_simple_query("INSERT INTO KontogruppenZuordnung(GruppenNAME ,KontoNAME) VALUES (?,?)",(Gruppe,Konto))
+        make_simple_query("DELETE FROM LikelyKontoGruppenMatch WHERE KontoNAME=? AND GruppenNAME=?",(Konto,Gruppe))
 
 def assign_most_likely_category():
-    knowncombinations=make_simple_query("SELECT * FROM WordLikelyCategory")
+    knowncombinations=make_simple_query("SELECT Word,KategorieNAME FROM WordLikelyCategory")
     likelykeywords=getlikelykeywords()
     if likelykeywords=={}:
         return
@@ -51,9 +57,19 @@ def assign_most_likely_category():
     {"\n".join(Konten_mit_Word_im_Namen(pair[0]))}"""
     print(Fragetext)
     if yesnowindow(Fragetext,Textheight=min(2*Fragetext.count("\n"),30)):
-        make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?)",pair)
+        isChain=yesnowindow("Handelt es sich um eine Ladenkette oder ähnliches?")
+        make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?,?)",(pair[0],pair[1],isChain))
+        if isChain:
+            Query="""
+            INSERT INTO LikelyKontoGruppenMatch (GruppenNAME,KontoNAME)
+            SELECT DISTINCT ?,AuftraggeberEmpfaenger
+            FROM Umsaetze
+            WHERE LOWER(AuftraggeberEmpfaenger) LIKE '%' || LOWER(?) || '%';
+            """
+            make_simple_query(Query,(pair[0],pair[0]))
+
     elif yesnowindow(f"Soll das Wort '{pair[0]}' als mehrdeutig gekennzeichnet werden?"):
-        make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?)",(pair[0],"Mehrdeutig"))
+        make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?,?)",(pair[0],"Mehrdeutig",False))
 
 def Konten_mit_Word_im_Namen(Word)->list[str]:
     Query="""
@@ -70,11 +86,12 @@ def openingmenu():
     Job:str|None=None
     root=tkinter.Tk()
     root.title("Choose what you want to do")
-    modes=["Categorize Zahlungspartner","Zahlungsübersicht","Mehrdeutige Zahlungen kategorisieren"]
+    modes=["Categorize Zahlungspartner","Zahlungsübersicht","Mehrdeutige Zahlungen kategorisieren","Detailansicht"]
     associatedfunction={
         "Categorize Zahlungspartner": assigncategories,
-        "Zahlungsübersicht": Zahlungsübersicht,
-        "Mehrdeutige Zahlungen kategorisieren": categorize_ambiguous_payments
+        "Zahlungsübersicht": ZahlungsübersichtNachKategorie,
+        "Mehrdeutige Zahlungen kategorisieren": categorize_ambiguous_payments,
+        "Detailansicht": Detailansicht
     }
     def f(mode):
         nonlocal Job
@@ -91,4 +108,5 @@ def openingmenu():
 
 
 assign_most_likely_category()
+assign_likely_groups()
 openingmenu()
