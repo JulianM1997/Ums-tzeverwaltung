@@ -11,12 +11,15 @@ assert dbname is not None
 DBNAME=dbname
 MONATE=[ "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November","Dezember"]
 Categories: list[str]
+MAX_NUMBER_IN_MULTIPLE_CHOICE_MENU=10
 
 
 
 
 # Queries
 def make_simple_query(Query,Parameters:tuple=())-> list[tuple]:
+    print(Query)
+    print(f"{Query = }, {Parameters = }")
     with sqlite3.connect(DBNAME) as connection:
         return connection.execute(Query,Parameters).fetchall()
     
@@ -70,7 +73,77 @@ def alldonewindow():
     root.focus_force()
     root.mainloop()
 
+def multiplechoicemenu_small(Text:str, ListOfOptions: list[str], root=None) -> str:
+    Window=tkinter.Tk() if root==None else tkinter.Toplevel(root)
+    Window.title(Text)
+    Selection:str|None=None
+    Buttons:dict[str,tkinter.Button]={}
+    def buttonclick(selection: str):
+        nonlocal Selection
+        Selection=selection
+        Window.destroy()
+    for i in ListOfOptions:
+        Buttons[i]=tkinter.Button(
+            Window,
+            text=f"{i} {i[0]}" if i not in ["...",".."] else i, 
+            command=lambda k=i: buttonclick(k),
+            width=100,
+            height=2
+            )
+        Buttons[i].pack()
+    SelectionIfReturnIsPressed:str|None=None
+    def changefocus(Option: str):
+        nonlocal SelectionIfReturnIsPressed
+        SelectionIfReturnIsPressed=Option
+        assert SelectionIfReturnIsPressed in ListOfOptions
+        Buttons[SelectionIfReturnIsPressed].focus_set()
+    def keystroke(event: tkinter.Event):
+        if event.char.isalpha():
+            #Set to next entry beginning with the letter
+            if event.char in (i[0].lower() for i in ListOfOptions):
+                aktueller_index=ListOfOptions.index(SelectionIfReturnIsPressed) if SelectionIfReturnIsPressed is not None else -1
+                nextindex=nextIndexStartingWith(aktueller_index,ListOfOptions,event.char)
+                changefocus(ListOfOptions[nextindex])
+        elif event.char=="\r":
+            if SelectionIfReturnIsPressed is None:
+                return
+            buttonclick(SelectionIfReturnIsPressed)
+        elif event.keysym=="Down":
+            if ".." in ListOfOptions:
+                changefocus("..")
+        elif event.keysym=="Up":
+            if "..." in ListOfOptions:
+                changefocus("...")
+                
+    Window.bind("<KeyPress>",keystroke)
+    Window.focus_force()
+    Window.mainloop()
+    if Selection is None:
+        raise ValueError("No Input received")
+    return Selection
 
+def multiplechoicemenu(Text:str, ListOfOptions: list[str], root=None) -> str:
+    if len(ListOfOptions)<=MAX_NUMBER_IN_MULTIPLE_CHOICE_MENU:
+        return multiplechoicemenu_small(Text,ListOfOptions,root)
+    PartitionOfOptions=[[]]
+    for i in ListOfOptions:
+        if len(PartitionOfOptions[-1])<MAX_NUMBER_IN_MULTIPLE_CHOICE_MENU-1:
+            PartitionOfOptions[-1].append(i)
+        else:
+            PartitionOfOptions[-1].append("...")
+            PartitionOfOptions.append(["..",i])
+    if len(PartitionOfOptions[-1])==2:
+        Overhang=PartitionOfOptions.pop()[1]
+        PartitionOfOptions[-1][-1]=Overhang
+    i=0
+    while True:
+        Option=multiplechoicemenu_small(Text,PartitionOfOptions[i],root)
+        if Option=="...":
+            i+=1
+        elif Option=="..":
+            i-=1
+        else:
+            return Option
 
 
 # Sonstige
@@ -120,9 +193,24 @@ def rename_category(old,new):
     make_simple_query(Query1,(new,old))
     make_simple_query(Query2,(new,old))
 
+TABLES=[i[0] for i in make_simple_query("SELECT name FROM sqlite_master")]
+def getcolumns(tablename):
+    assert tablename in TABLES
+    Query=f"PRAGMA table_info({tablename})"
+    return [i[1] for i in make_simple_query(Query)]
+
 
 
 # def TabelleCursor(Curs):
 #     headers=[i[0] for i in Curs.description]
 #     data=Curs.fetchall()
 #     return tabulate(data,headers)
+
+
+#Other
+def nextIndexStartingWith(currentIndex:int,List:list[str],Startingletter):
+    return min(
+        (index for index,value in enumerate(List) if value[0].lower()==Startingletter),
+        key=lambda index: (index-currentIndex-1)%len(List)
+        )
+        

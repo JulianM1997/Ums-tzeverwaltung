@@ -72,11 +72,12 @@ def GesamtSpalteData(Jahr: str)->list[list[str]]:
     return [[mergeInOutDataPoint(InData[i][0],OutData[i][0])] for i in range(13)]
 
 
-def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,YeardataQuery:str,ColumnNameofHeaderinQuery:str,year="2025",index=0):
+def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,YeardataQuery:str,ColumnNameofHeaderinQuery:str,year="2025",index=0,Otherparameters=tuple()):
+    """Important: Year must be the final parameter"""
     headers=ColumnOrdnung[index:min(index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN,len(ColumnOrdnung))]
     # sideheaders=[str(i)+" "+inout for i in range(1,13) for inout in ["Out","In"]]
-    MonthlydataQueryResult=make_simple_read_query_and_get_headers_as_first_line(MonthlydataQuery,(year,))
-    YeardataQueryResult=make_simple_read_query_and_get_headers_as_first_line(YeardataQuery,(year,))
+    MonthlydataQueryResult=make_simple_read_query_and_get_headers_as_first_line(MonthlydataQuery,(*Otherparameters,year))
+    YeardataQueryResult=make_simple_read_query_and_get_headers_as_first_line(YeardataQuery,(*Otherparameters,year))
     TableDataMonth=TabellenWerteZahlungsübersichtZeilen(year,headers,"Monat",MonthlydataQueryResult.pop(0),MonthlydataQueryResult,ColumnNameofHeaderinQuery)
     TableDataYear=TabellenWerteZahlungsübersichtZeilen(year,headers,"Jahr",YeardataQueryResult.pop(0),YeardataQueryResult,ColumnNameofHeaderinQuery)
     MainData=TableDataMonth+TableDataYear
@@ -111,7 +112,7 @@ def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,Yeardata
     Do_something_afterwards=False
     root.mainloop()
     if Do_something_afterwards:
-        Zahlungsübersicht_neu(ColumnOrdnung,MonthlydataQuery,YeardataQuery,ColumnNameofHeaderinQuery,year,index)
+        Zahlungsübersicht_neu(ColumnOrdnung,MonthlydataQuery,YeardataQuery,ColumnNameofHeaderinQuery,year,index,Otherparameters)
 
 def ZahlungsübersichtNachKategorie():
     ColumnOrdnung=most_relevant_categories()
@@ -128,7 +129,14 @@ def ZahlungsübersichtNachKategorie():
     )
 
 def Detailansicht():
-    ÜbersichtnachLadenetc()
+    category=multiplechoicemenu(
+        Text="Welche Kategorie soll betrachtet werden?",
+        ListOfOptions=["Gesamtansicht"]+most_relevant_categories()
+        )
+    if category=="Gesamtansicht":
+        ÜbersichtnachLadenetc()
+    else:
+        ÜbersichtnachLadenetcGefiltertNachKategorie(category)
 
 def most_relevant_chains(year):
     Query=f"""
@@ -151,3 +159,70 @@ def ÜbersichtnachLadenetc():
         YeardataQuery=Querybydimension("Jahr"),
         ColumnNameofHeaderinQuery="Gruppe"
     )
+
+def ÜbersichtnachLadenetcGefiltertNachKategorie(Kategorie):
+    Filter={"Kategorie": Kategorie}
+    MonthlyDataQuery,Parameters1=ZahlungsübersichtMonatQuery_and_Parameters(Filter,["Gruppe"])
+    YearQueryQuery,Parameters2=ZahlungsübersichtJahrQuery_and_Parameters(Filter,["Gruppe"])
+    assert Parameters1==Parameters2
+    Zahlungsübersicht_neu(
+        ColumnOrdnung=most_relevant_values("Gruppe","2025",Filter),
+        MonthlydataQuery=MonthlyDataQuery,
+        YeardataQuery=YearQueryQuery,
+        ColumnNameofHeaderinQuery="Gruppe",
+        Otherparameters=Parameters1
+    )
+
+def most_relevant_values(column:str,year:str,Filter:dict[str,str])->list[str]:
+    QueryZahlungsübersicht,NonYearParameters=ZahlungsübersichtJahrQuery_and_Parameters(Filter,[column])
+    Query=f"SELECT {column} FROM ({QueryZahlungsübersicht}) ORDER BY Total"
+    Result=make_simple_query(Query,(*NonYearParameters,year))
+    return [i[0] for i in Result]
+
+
+def ZahlungsübersichtMonatQuery_and_Parameters(Filter:dict[str,str],Spalten:list[str])->tuple[str,tuple]:
+    Filterspalten=list(Filter.keys())
+    Parameter=tuple(Filter[i] for i in Filterspalten)
+    if Filterspalten==[] or Spalten==[]:
+        raise NotImplementedError
+    assert set(Filterspalten+Spalten).issubset(getcolumns("DetailansichtUmsaetze"))
+    Query=f"""
+    SELECT *
+    FROM (
+        SELECT  {",".join(Spalten+Filterspalten)}, 
+            CASE 
+                WHEN Betrag>0 THEN 1
+                ELSE 0
+            END AS Einnahme,
+            sum(Betrag) AS Total,
+            substr(Buchung,7,4) AS Jahr,
+            substr(Buchung,4,2) AS Monat
+        FROM DetailansichtUmsaetze
+        GROUP BY {",".join(Spalten)}, Einnahme, Monat, Jahr
+        )
+    WHERE {",".join([f"{i}=?" for i in Filterspalten])} AND Jahr=?
+    """
+    return Query,Parameter
+
+def ZahlungsübersichtJahrQuery_and_Parameters(Filter:dict[str,str],Spalten:list[str])->tuple[str,tuple]:
+    Filterspalten=list(Filter.keys())
+    Parameter=tuple(Filter[i] for i in Filterspalten)
+    if Filterspalten==[] or Spalten==[]:
+        raise NotImplementedError
+    assert set(Filterspalten+Spalten).issubset(getcolumns("DetailansichtUmsaetze"))
+    Query=f"""
+    SELECT *
+    FROM (
+        SELECT  {",".join(Spalten+Filterspalten)}, 
+            CASE 
+                WHEN Betrag>0 THEN 1
+                ELSE 0
+            END AS Einnahme,
+            sum(Betrag) AS Total,
+            substr(Buchung,7,4) AS Jahr
+        FROM DetailansichtUmsaetze
+        GROUP BY {",".join(Spalten)}, Einnahme, Jahr
+        )
+    WHERE {",".join([f"{i}=?" for i in Filterspalten])} AND Jahr=?
+    """
+    return Query,Parameter

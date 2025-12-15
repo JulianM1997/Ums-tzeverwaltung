@@ -112,7 +112,10 @@ def categorizationwindow(line:tuple[str],headers:tuple[str],insertcategory,title
                     )
                 selected.set(sorted_categories[nextindex])
         elif event.char=="\r":
-            submit()
+            if selected.get() == "Sonstige" and root.focus_get() != entry:
+                entry.focus_set()
+            else:
+                submit()
     button = tkinter.Button(root, text="Submit", command=submit)
     button.pack()
     root.bind("<KeyPress>",keystroke)

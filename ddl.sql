@@ -88,6 +88,11 @@ FROM Umsaetze U
 LEFT JOIN KontogruppenZuordnung K
 ON U.AuftraggeberEmpfaenger=K.KontoNAME;
 
+CREATE VIEW DetailansichtUmsaetze AS
+SELECT A.*, B.Gruppe AS Gruppe
+FROM UmsaetzemitKategorien A LEFT JOIN UmsaetzemitGruppenzuordnung B
+ON A.hashofentry=B.hashofentry;
+
 CREATE VIEW ZahlungsübersichtMonat AS 
 SELECT  Kategorie, 
     CASE 
