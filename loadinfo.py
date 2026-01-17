@@ -1,7 +1,7 @@
 from Helpfulfunctions import *
 from assign_category import *
 from payment_overview import *
-
+from periodic_expenses import *
 
 
 
@@ -34,7 +34,6 @@ def assign_most_likely_category():
     for word,_ in likelykeywords:
         totalappearancesofword[word]=totalappearancesofword.get(word,0)+likelykeywords[word,_]
     def pairinteresting(pair)->bool:
-        print(pair)
         if pair in knowncombinations:
             return False
         if (pair[0],"Mehrdeutig") in knowncombinations:
@@ -44,8 +43,6 @@ def assign_most_likely_category():
         if likelykeywords[pair]<2:
             return False
         return likelykeywords[pair]>=totalappearancesofword[pair[0]]*2/3
-    print(max(likelykeywords))
-    print(likelykeywords)
     while  not pairinteresting(pair:=max(likelykeywords)):
         likelykeywords.pop(pair)
         if likelykeywords=={}:
@@ -55,7 +52,6 @@ def assign_most_likely_category():
     Soll das Wort '{pair[0]}' der Kategorie '{pair[1]}' zugeordnet werden? 
     Vorkommen: 
     {"\n".join(Konten_mit_Word_im_Namen(pair[0]))}"""
-    print(Fragetext)
     if yesnowindow(Fragetext,Textheight=min(2*Fragetext.count("\n"),30)):
         isChain=yesnowindow("Handelt es sich um eine Ladenkette oder ähnliches?")
         make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?,?)",(pair[0],pair[1],isChain))
@@ -78,7 +74,6 @@ def Konten_mit_Word_im_Namen(Word)->list[str]:
     WHERE AuftraggeberEmpfaenger LIKE ?
     """
     Vorkommen=make_simple_query(Query,(f"%{Word}%",))
-    print([i[0] for i in Vorkommen])
     return [i[0] for i in Vorkommen]
     
 
@@ -86,13 +81,14 @@ def openingmenu():
     Job:str|None=None
     root=tkinter.Tk()
     root.title("Choose what you want to do")
-    modes=["Categorize Zahlungspartner","Zahlungsübersicht","Mehrdeutige Zahlungen kategorisieren","Detailansicht"]
     associatedfunction={
         "Categorize Zahlungspartner": assigncategories,
         "Zahlungsübersicht": ZahlungsübersichtNachKategorie,
         "Mehrdeutige Zahlungen kategorisieren": categorize_ambiguous_payments,
-        "Detailansicht": Detailansicht
+        "Detailansicht": Detailansicht,
+        "Regelmäßige Ausgaben": periodic_expenses
     }
+    modes=associatedfunction.keys()
     def f(mode):
         nonlocal Job
         Job=mode

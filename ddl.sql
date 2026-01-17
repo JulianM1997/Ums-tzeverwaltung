@@ -11,6 +11,14 @@ CREATE TABLE Umsaetze (
     Notiz VARCHAR(256)
     );
 
+ALTER TABLE Umsaetze
+ADD COLUMN 
+CorrectlyformattedDate DATE GENERATED ALWAYS
+AS
+(substr(Buchung,7,4)||'-'||substr(Buchung,4,2)||'-'||substr(Buchung,1,2))
+VIRTUAL;
+
+
 CREATE TABLE Ausgabenkategorie (
     KategorieNAME VARCHAR PRIMARY KEY
 );

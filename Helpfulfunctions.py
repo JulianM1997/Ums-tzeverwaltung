@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 import os
 import tkinter
 from typing import Literal
+import textwrap
+from tabulate import tabulate
 
 # Helpful (and needed) constants
 load_dotenv()
@@ -12,14 +14,14 @@ DBNAME=dbname
 MONATE=[ "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November","Dezember"]
 Categories: list[str]
 MAX_NUMBER_IN_MULTIPLE_CHOICE_MENU=10
+MAX_HEADER_WIDTH=20
+MAX_NUMBER_OF_COLUMNS_ON_SCREEN=5
 
 
 
 
 # Queries
 def make_simple_query(Query,Parameters:tuple=())-> list[tuple]:
-    print(Query)
-    print(f"{Query = }, {Parameters = }")
     with sqlite3.connect(DBNAME) as connection:
         return connection.execute(Query,Parameters).fetchall()
     
@@ -145,6 +147,35 @@ def multiplechoicemenu(Text:str, ListOfOptions: list[str], root=None) -> str:
         else:
             return Option
 
+def displayTable(headers:tuple[str],tabledata:list[tuple],index=0):
+    print(headers)
+    print(tabledata)
+    includedHeaders=headers[index:index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN]
+    includedData=[i[index:index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN] for i in tabledata]
+    root=tkinter.Tk()
+    root.state("zoomed")
+    tabelle=tkinter.Text(root, font=("Courier New", 10))
+    print(includedHeaders)
+    FormattedHeaders=[textwrap.fill(str(i),width=MAX_HEADER_WIDTH) for i in includedHeaders]
+    tabelle.insert(
+        tkinter.END,
+        tabulate(includedData, headers=FormattedHeaders,tablefmt="grid"))
+    tabelle.pack(expand=True, fill="both")
+    root.bind("<Return>",lambda e: root.destroy())
+    def move_to_left_or_right(Right:bool):
+        nonlocal Do_something_afterwards
+        nonlocal index
+        step=1 if Right else -1
+        if index+step>=0 and index+step+MAX_NUMBER_OF_COLUMNS_ON_SCREEN<=len(headers):
+            Do_something_afterwards=True
+            index=index+step
+            root.destroy()
+    root.bind("<Left>",lambda e: move_to_left_or_right(False))
+    root.bind("<Right>",lambda e: move_to_left_or_right(True))
+    Do_something_afterwards=False
+    root.mainloop()
+    if Do_something_afterwards:
+        displayTable(headers,tabledata,index)
 
 # Sonstige
 
@@ -214,3 +245,7 @@ def nextIndexStartingWith(currentIndex:int,List:list[str],Startingletter):
         key=lambda index: (index-currentIndex-1)%len(List)
         )
         
+def reformatDate(dd_mm_yyyy:str)->str:
+    mm=dd_mm_yyyy[3:5]
+    yyyy=dd_mm_yyyy[6:]
+    return f"{MONATE[int(mm)]} {yyyy}"
