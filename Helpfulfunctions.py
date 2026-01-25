@@ -87,7 +87,7 @@ def multiplechoicemenu_small(Text:str, ListOfOptions: list[str], root=None) -> s
     for i in ListOfOptions:
         Buttons[i]=tkinter.Button(
             Window,
-            text=f"{i} {i[0]}" if i not in ["...",".."] else i, 
+            text=f"{i} {str(i)[0]}" if i not in ["...",".."] else i, 
             command=lambda k=i: buttonclick(k),
             width=100,
             height=2

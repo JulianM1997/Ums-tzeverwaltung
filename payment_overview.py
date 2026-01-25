@@ -1,13 +1,14 @@
 from typing import Literal
 from tabulate import tabulate
 import textwrap
+from datetime import datetime
 
 from Helpfulfunctions import *
 
 
 MAX_NUMBER_OF_COLUMNS_ON_SCREEN=5
 MAX_HEADER_WIDTH=20
-
+STANDARDJAHR=datetime.now().year
 
 
 
@@ -72,7 +73,7 @@ def GesamtSpalteData(Jahr: str)->list[list[str]]:
     return [[mergeInOutDataPoint(InData[i][0],OutData[i][0])] for i in range(13)]
 
 
-def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,YeardataQuery:str,ColumnNameofHeaderinQuery:str,year="2025",index=0,Otherparameters=tuple()):
+def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,YeardataQuery:str,ColumnNameofHeaderinQuery:str,year=str(STANDARDJAHR),index=0,Otherparameters=tuple()):
     """Important: Year must be the final parameter"""
     headers=ColumnOrdnung[index:min(index+MAX_NUMBER_OF_COLUMNS_ON_SCREEN,len(ColumnOrdnung))]
     # sideheaders=[str(i)+" "+inout for i in range(1,13) for inout in ["Out","In"]]
@@ -86,7 +87,7 @@ def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,Yeardata
     root=tkinter.Tk()
     root.state("zoomed")
     tabelle=tkinter.Text(root, font=("Courier New", 10))
-    headers=[textwrap.fill(i,width=MAX_HEADER_WIDTH) for i in headers]
+    headers=[textwrap.fill(str(i),width=MAX_HEADER_WIDTH) for i in headers]
     tabelle.insert(tkinter.END,tabulate(Data, headers=[""]+headers+["Gesamt"],tablefmt="grid"))
     tabelle.pack(expand=True, fill="both")
     root.bind("<Return>",lambda e: root.destroy())
@@ -94,7 +95,7 @@ def Zahlungsübersicht_neu(ColumnOrdnung:list[str],MonthlydataQuery:str,Yeardata
         nonlocal Do_something_afterwards
         nonlocal index
         step=1 if Right else -1
-        if index+step>=0 and index+step+MAX_NUMBER_OF_COLUMNS_ON_SCREEN<=len(ColumnOrdnung):
+        if index+step>=0 and index+step+MAX_NUMBER_OF_COLUMNS_ON_SCREEN<len(ColumnOrdnung):
             Do_something_afterwards=True
             index=index+step
             root.destroy()
@@ -154,7 +155,7 @@ def ÜbersichtnachLadenetc():
             WHERE Jahr=?
             """
     Zahlungsübersicht_neu(
-        ColumnOrdnung=most_relevant_chains("2025"),
+        ColumnOrdnung=most_relevant_chains(str(STANDARDJAHR)),
         MonthlydataQuery=Querybydimension("Monat"),
         YeardataQuery=Querybydimension("Jahr"),
         ColumnNameofHeaderinQuery="Gruppe"
@@ -166,7 +167,7 @@ def ÜbersichtnachLadenetcGefiltertNachKategorie(Kategorie):
     YearQueryQuery,Parameters2=ZahlungsübersichtJahrQuery_and_Parameters(Filter,["Gruppe"])
     assert Parameters1==Parameters2
     Zahlungsübersicht_neu(
-        ColumnOrdnung=most_relevant_values("Gruppe","2025",Filter),
+        ColumnOrdnung=most_relevant_values("Gruppe",str(STANDARDJAHR),Filter),
         MonthlydataQuery=MonthlyDataQuery,
         YeardataQuery=YearQueryQuery,
         ColumnNameofHeaderinQuery="Gruppe",
