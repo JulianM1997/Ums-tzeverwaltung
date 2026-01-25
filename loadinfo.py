@@ -2,7 +2,7 @@ from Helpfulfunctions import *
 from assign_category import *
 from payment_overview import *
 from periodic_expenses import *
-
+from metafunctions import *
 
 
 def getlikelykeywords() -> dict[tuple[str,str],int]:#The goal is to find likely keywords (such as REWE) in the name of an entity to identify a category
@@ -36,9 +36,7 @@ def assign_most_likely_category():
     def pairinteresting(pair)->bool:
         if pair in knowncombinations:
             return False
-        if (pair[0],"Mehrdeutig") in knowncombinations:
-            return False
-        if pair[1]=="Mehrdeutig":
+        if (pair[0],"not_to_categorize") in knowncombinations:
             return False
         if likelykeywords[pair]<2:
             return False
@@ -64,8 +62,8 @@ def assign_most_likely_category():
             """
             make_simple_query(Query,(pair[0],pair[0]))
 
-    elif yesnowindow(f"Soll das Wort '{pair[0]}' als mehrdeutig gekennzeichnet werden?"):
-        make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?,?)",(pair[0],"Mehrdeutig",False))
+    elif yesnowindow(f"Soll das Wort '{pair[0]}' als 'nicht zu kategorisieren' gekennzeichnet werden?"):
+        make_simple_query("INSERT INTO WordLikelyCategory VALUES (?,?,?)",(pair[0],"not_to_categorize",False))
 
 def Konten_mit_Word_im_Namen(Word)->list[str]:
     Query="""
@@ -78,29 +76,20 @@ def Konten_mit_Word_im_Namen(Word)->list[str]:
     
 
 def openingmenu():
-    Job:str|None=None
-    root=tkinter.Tk()
-    root.title("Choose what you want to do")
     associatedfunction={
         "Categorize Zahlungspartner": assigncategories,
         "Zahlungsübersicht": ZahlungsübersichtNachKategorie,
         "Mehrdeutige Zahlungen kategorisieren": categorize_ambiguous_payments,
         "Detailansicht": Detailansicht,
-        "Regelmäßige Ausgaben": periodic_expenses
+        "Regelmäßige Ausgaben": periodic_expenses,
+        "Konfigurationen": meta_functions
     }
-    modes=associatedfunction.keys()
-    def f(mode):
-        nonlocal Job
-        Job=mode
-        root.destroy()
-    for i,mode in enumerate(modes):
-        button=tkinter.Button(root,text=mode+f" [{i}]",command=lambda m=mode: f(m), width=30,height=5)
-        button.pack()
-        if i<10:
-            root.bind(f"<Key-{i}>",lambda e,m=mode: f(m))
-    root.mainloop()
-    assert Job is not None
-    associatedfunction[Job]()
+    menu_for_choosing_function(associatedfunction,force_focus=True)
+
+def meta_functions():
+    associatedfunction={
+        "Überprüfe Kategorien": vendor_categorizations   }
+    menu_for_choosing_function(associatedfunction)
 
 
 assign_most_likely_category()

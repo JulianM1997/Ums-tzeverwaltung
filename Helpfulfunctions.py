@@ -2,7 +2,7 @@ import sqlite3
 from dotenv import load_dotenv
 import os
 import tkinter
-from typing import Literal
+from typing import Literal,Callable
 import textwrap
 from tabulate import tabulate
 
@@ -177,6 +177,39 @@ def displayTable(headers:tuple[str],tabledata:list[tuple],index=0):
     if Do_something_afterwards:
         displayTable(headers,tabledata,index)
 
+def menu_for_choosing_function(associatedfunction:dict[str,Callable],force_focus=False):
+    Job:str|None=None
+    root=tkinter.Tk()
+    root.title("Choose what you want to do")
+    modes=associatedfunction.keys()
+    def f(mode):
+        nonlocal Job
+        Job=mode
+        root.destroy()
+    for i,mode in enumerate(modes):
+        button=tkinter.Button(root,text=mode+f" [{i}]",command=lambda m=mode: f(m), width=30,height=5)
+        button.pack()
+        if i<10:
+            root.bind(f"<Key-{i}>",lambda e,m=mode: f(m))
+    if force_focus:
+        root.focus_force()
+    root.mainloop()
+    assert Job is not None
+    associatedfunction[Job]()
+
+def DisplaySimpleText(Text: str, root=None, title:str|None=None,Textheight=20)->None:
+    Window=tkinter.Tk() if root==None else tkinter.Toplevel(root)
+    title=title if title is not None else ""
+    Window.title(title)
+    Textfeld=tkinter.Text(Window,height=Textheight)
+    Textfeld.tag_configure("center",justify="left")
+    Textfeld.insert(tkinter.END,Text,"center")
+    Textfeld.pack()
+    Window.focus_force()
+    Window.bind("<Return>",lambda e: Window.destroy())
+    Window.mainloop()
+    
+    
 # Sonstige
 
 def getcategories(sorted_by_number_of_appearances=False, in_what: Literal["KategorieZuordnung","mehrdeutige Umsaetze"]="KategorieZuordnung")->list[str]:
