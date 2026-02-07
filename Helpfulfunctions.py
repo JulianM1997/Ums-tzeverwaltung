@@ -2,13 +2,19 @@ import sqlite3
 from dotenv import load_dotenv
 import os
 import tkinter
+from tkinter import font
 from typing import Literal,Callable
 import textwrap
 from tabulate import tabulate
 
 # Helpful (and needed) constants
 load_dotenv()
-dbname=os.getenv("DBNAME")
+Environment=os.getenv("Environment")
+if Environment=="Prod":
+    dbname=os.getenv("DBNAME")
+else:
+    assert Environment=="Test"
+    dbname=os.getenv("TestDBName")
 assert dbname is not None
 DBNAME=dbname
 MONATE=[ "Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November","Dezember"]
@@ -22,6 +28,7 @@ MAX_NUMBER_OF_COLUMNS_ON_SCREEN=5
 
 # Queries
 def make_simple_query(Query,Parameters:tuple=())-> list[tuple]:
+    print(Query,Parameters)
     with sqlite3.connect(DBNAME) as connection:
         return connection.execute(Query,Parameters).fetchall()
     
@@ -208,6 +215,64 @@ def DisplaySimpleText(Text: str, root=None, title:str|None=None,Textheight=20)->
     Window.focus_force()
     Window.bind("<Return>",lambda e: Window.destroy())
     Window.mainloop()
+    
+def multiple_select_window(Text:str,Options:list):
+    Window=tkinter.Tk()
+    Window.title(Text)
+    selection=None
+    listbox=tkinter.Listbox(
+        Window,
+        selectmode=tkinter.MULTIPLE,
+        height=min(10,len(Options)),
+        justify=tkinter.CENTER,
+        font=font.Font(family="Segoe UI", size=12),
+        exportselection=False
+    )
+    for option in Options:
+        listbox.insert(tkinter.END,option)
+
+    listbox.pack(padx=10,pady=10, fill=tkinter.BOTH,expand=True)
+
+    def confirm():
+        nonlocal selection
+        selection=[Options[i] for i in listbox.curselection()]
+        Window.destroy()
+    
+    Button=tkinter.Button(
+            Window,
+            text="Commit", 
+            command=confirm,
+            width=50,
+            height=2
+            )
+    Button.pack()
+    Window.bind("<Return>",lambda e: confirm)
+    Window.mainloop()
+    return selection
+    
+def TextinputWindow(Fragetext:str)->str:
+    Window=tkinter.Tk()
+    Window.title(Fragetext)
+    Output:str|None=None
+    Entry=tkinter.Entry()
+    Entry.pack()
+    def confirm():
+        nonlocal Output
+        Output=Entry.get()
+        Window.destroy()
+    Button=tkinter.Button(
+            Window,
+            text="Commit", 
+            command=confirm,
+            width=50,
+            height=2
+            )
+    Button.pack()
+    Window.bind("<Return>",lambda e: confirm)
+    Window.focus_force()
+    Window.mainloop()
+    assert Output is not None
+    return Output
     
     
 # Sonstige

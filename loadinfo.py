@@ -20,6 +20,16 @@ def getlikelykeywords() -> dict[tuple[str,str],int]:#The goal is to find likely 
         
 def assign_likely_groups():
     Likely_Gruppenzuordnung=make_simple_query("SELECT GruppenNAME, KontoNAME FROM LikelyKontoGruppenMatch")
+    if Likely_Gruppenzuordnung==[]:
+        return
+    Frage="Sollen die folgenden Konten alle den folgenden Gruppen zugeordnet werden?"
+    ZuordnungenText=[f"{Konto} -> {Gruppe}" for Gruppe,Konto in Likely_Gruppenzuordnung]
+    VollständigeFrage="\n".join([Frage]+ZuordnungenText)
+    if yesnowindow(VollständigeFrage):
+        for Gruppe,Konto in Likely_Gruppenzuordnung:
+            make_simple_query("INSERT INTO KontogruppenZuordnung(GruppenNAME ,KontoNAME) VALUES (?,?)",(Gruppe,Konto))
+            make_simple_query("DELETE FROM LikelyKontoGruppenMatch WHERE KontoNAME=? AND GruppenNAME=?",(Konto,Gruppe)) 
+        return
     for Gruppe,Konto in Likely_Gruppenzuordnung:
         if yesnowindow(f"Soll das Konto {Konto} der Gruppe {Gruppe} zugeordnet werden?"):
             make_simple_query("INSERT INTO KontogruppenZuordnung(GruppenNAME ,KontoNAME) VALUES (?,?)",(Gruppe,Konto))
@@ -88,7 +98,9 @@ def openingmenu():
 
 def meta_functions():
     associatedfunction={
-        "Überprüfe Kategorien": vendor_categorizations   }
+        "Überprüfe Kategorien": vendor_categorizations,
+        "Create Unterkategorie": create_subcategory_window,
+    }
     menu_for_choosing_function(associatedfunction)
 
 

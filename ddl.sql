@@ -23,6 +23,9 @@ CREATE TABLE Ausgabenkategorie (
     KategorieNAME VARCHAR PRIMARY KEY
 );
 
+ALTER TABLE Ausgabenkategorie 
+ADD COLUMN ParentCategory VARCHAR(256);
+
 CREATE TABLE KategorieZuordnung (
     AuftraggeberEmpfaenger VARCHAR(256) PRIMARY KEY,
     KategorieNAME VARCHAR(16),
@@ -75,6 +78,18 @@ BEGIN
             LIMIT 1),
             NEW.AuftraggeberEmpfaenger);
 END;
+
+CREATE VIEW KategorieAncestors AS
+RECURSIVE categoryAncestors(Kategorie, parent) AS
+    (
+        SELECT Kategorie,parent
+        FROM Ausgabenkategorie
+        WHERE parent IS NOT NULL
+        UNION ALL 
+        SELECT Kategorie,parent
+        FROM categoryAncestors cA
+        JOIN Ausgabenkategorie Ak ON Ak.parent=cA.Kategorie
+    )
 
 CREATE VIEW UmsaetzemitKategorien AS
 SELECT  U.*,

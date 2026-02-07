@@ -18,3 +18,45 @@ def vendor_categorizations():
         Todisplaytextlines.append("   "+j)
     DisplayedText="\n".join(Todisplaytextlines)
     DisplaySimpleText(DisplayedText)
+
+
+def convert_existing_category_to_subcategory(category:str ,parent_category: str)->None:
+    Query="""UPDATE Ausgabenkategorie SET ParentCategory=? WHERE KategorieNAME=?;"""
+    make_simple_query(Query,(parent_category,category))
+
+def list_all_vendors_of_category(category:str):
+    Query="SELECT AuftraggeberEmpfaenger FROM KategorieZuordnung WHERE KategorieNAME=?;"
+    return make_simple_query(Query,(category,))
+
+def does_category_exist(name)->bool:
+    Query="SELECT count(*) FROM Ausgabenkategorie WHERE KategorieNAME=?"
+    result=make_simple_query(Query,(name,))
+    return result[0][0]==1
+
+def add_subcategory_to_DB(Name:str,parent_category:str):
+    if does_category_exist(Name) and yesnowindow(f"Category already exists. Do you wish to overwrite the parent?"):
+        Query="UPDATE Ausgabenkategorie SET ParentCategory=? WHERE KategorieNAME=?"
+        make_simple_query(Query,(parent_category,Name))
+        return
+    Query="""
+    INSERT INTO Ausgabenkategorie(KategorieNAME,ParentCategory)
+    VALUES (?,?)
+    """
+    make_simple_query(Query,(Name,parent_category))
+
+def create_new_subcategory(Name:str,parent_category:str):
+    add_subcategory_to_DB(Name,parent_category)
+    affected_vendors=list_all_vendors_of_category(parent_category)
+    vendors_to_recategorize=multiple_select_window(
+        f"Welche dieser Verkäufer sollen der Kategorie {Name} zugeordnet werden?",
+        affected_vendors
+        )
+    Query2="""
+    UPDATE KategorieZuordnung SET KategorieNAME=? WHERE AuftraggeberEmpfaenger IN ?;
+    """
+    make_simple_query(Query2,(Name,vendors_to_recategorize))
+
+def create_subcategory_window():
+    parent=multiplechoicemenu("Welche Kategorie soll eine Unterkategorie bekommen?",getcategories())
+    Name=TextinputWindow("Wie soll die Kategorie heißen?")
+    create_new_subcategory(Name,parent)
