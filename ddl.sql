@@ -29,7 +29,7 @@ ADD COLUMN ParentCategory VARCHAR(256);
 CREATE TABLE KategorieZuordnung (
     AuftraggeberEmpfaenger VARCHAR(256) PRIMARY KEY,
     KategorieNAME VARCHAR(16),
-    FOREIGN KEY(KategorieNAME) REFERENCES Ausgabenkategorie
+    FOREIGN KEY(KategorieNAME) REFERENCES Ausgabenkategorie(KategorieNAME)
 );
 
 CREATE TRIGGER Auto_Update_Ausgabenkategorie
@@ -80,16 +80,17 @@ BEGIN
 END;
 
 CREATE VIEW KategorieAncestors AS
-RECURSIVE categoryAncestors(Kategorie, parent) AS
+WITH RECURSIVE categoryAncestors(KategorieNAME, ParentCategory) AS
     (
-        SELECT Kategorie,parent
+        SELECT KategorieNAME,ParentCategory
         FROM Ausgabenkategorie
-        WHERE parent IS NOT NULL
+        WHERE ParentCategory IS NOT NULL
         UNION ALL 
-        SELECT Kategorie,parent
+        SELECT Ak.KategorieNAME,cA.ParentCategory
         FROM categoryAncestors cA
-        JOIN Ausgabenkategorie Ak ON Ak.parent=cA.Kategorie
+        JOIN Ausgabenkategorie Ak ON Ak.ParentCategory=cA.KategorieNAME
     )
+SELECT * FROM categoryAncestors;
 
 CREATE VIEW UmsaetzemitKategorien AS
 SELECT  U.*,
@@ -100,6 +101,27 @@ SELECT  U.*,
 FROM Umsaetze U
 LEFT JOIN KategorieZuordnung K 
 ON U.AuftraggeberEmpfaenger=K.AuftraggeberEmpfaenger;
+
+CREATE VIEW UmsaetzeKategorienKombinationen AS
+SELECT 
+    Buchung,
+    Wertstellungsdatum,
+    AuftraggeberEmpfaenger,
+    Buchungstext,
+    Verwendungszweck,
+    Betrag,
+    Kategorie
+FROM UmsaetzemitKategorien
+UNION
+SELECT Buchung,
+    Wertstellungsdatum,
+    AuftraggeberEmpfaenger,
+    Buchungstext,
+    Verwendungszweck,
+    Betrag,
+    K.ParentCategory
+FROM UmsaetzemitKategorien U
+JOIN KategorieAncestors K ON U.Kategorie=K.KategorieNAME;
 
 CREATE VIEW UmsaetzemitGruppenzuordnung AS
 SELECT  U.*,

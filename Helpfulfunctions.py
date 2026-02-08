@@ -216,10 +216,10 @@ def DisplaySimpleText(Text: str, root=None, title:str|None=None,Textheight=20)->
     Window.bind("<Return>",lambda e: Window.destroy())
     Window.mainloop()
     
-def multiple_select_window(Text:str,Options:list):
+def multiple_select_window(Text:str,Options:list)->list:
     Window=tkinter.Tk()
     Window.title(Text)
-    selection=None
+    selection:list[str]|None=None
     listbox=tkinter.Listbox(
         Window,
         selectmode=tkinter.MULTIPLE,
@@ -246,8 +246,9 @@ def multiple_select_window(Text:str,Options:list):
             height=2
             )
     Button.pack()
-    Window.bind("<Return>",lambda e: confirm)
+    Window.bind("<Return>",lambda e: confirm())
     Window.mainloop()
+    assert selection is not None
     return selection
     
 def TextinputWindow(Fragetext:str)->str:
@@ -327,6 +328,12 @@ def getcolumns(tablename):
     assert tablename in TABLES
     Query=f"PRAGMA table_info({tablename})"
     return [i[1] for i in make_simple_query(Query)]
+
+def is_valid_tablename(table):
+    return table in TABLES
+
+def is_valid_columnname(table,column):
+    return column in getcolumns(table)
 
 
 

@@ -44,17 +44,47 @@ def add_subcategory_to_DB(Name:str,parent_category:str):
     """
     make_simple_query(Query,(Name,parent_category))
 
-def create_new_subcategory(Name:str,parent_category:str):
+def recategorizeTableEntry(table,idcolumn,newcategory,parent_category):
+    assert is_valid_tablename(table)
+    assert is_valid_columnname(table,idcolumn)
+    def list_all_entries_of_category(category:str):
+        Query=f"SELECT {idcolumn} FROM {table} WHERE KategorieNAME=?;"
+        return make_simple_query(Query,(category,))
+    affected_entries=list_all_entries_of_category(parent_category)
+    entries_to_recategorize=multiple_select_window(
+        f"Welche dieser Einträge sollen der Kategorie {newcategory} zugeordnet werden?",
+        affected_entries
+        )
+    Query2=f"""
+    UPDATE {table} 
+    SET KategorieNAME=? 
+    WHERE {idcolumn} IN ({", ".join(["?" for i in entries_to_recategorize])});
+    """
+    make_simple_query(Query2,(newcategory,*[i[0] for i in entries_to_recategorize]))
+
+
+def create_new_subcategory_old_version(Name:str,parent_category:str):
     add_subcategory_to_DB(Name,parent_category)
     affected_vendors=list_all_vendors_of_category(parent_category)
     vendors_to_recategorize=multiple_select_window(
         f"Welche dieser Verkäufer sollen der Kategorie {Name} zugeordnet werden?",
         affected_vendors
         )
-    Query2="""
-    UPDATE KategorieZuordnung SET KategorieNAME=? WHERE AuftraggeberEmpfaenger IN ?;
+    Query2=f"""
+    UPDATE KategorieZuordnung 
+    SET KategorieNAME=? 
+    WHERE AuftraggeberEmpfaenger IN ({", ".join(["?" for i in vendors_to_recategorize])});
     """
-    make_simple_query(Query2,(Name,vendors_to_recategorize))
+    make_simple_query(Query2,(Name,*[i[0] for i in vendors_to_recategorize]))
+
+def create_new_subcategory(Name:str,parent_category:str):
+    add_subcategory_to_DB(Name,parent_category)
+    tables_idcolumn_to_recategorize=[
+        ("KategorieZuordnung","AuftraggeberEmpfaenger"),
+        ("WordLikelyCategory","Word")
+    ]
+    for i in tables_idcolumn_to_recategorize:
+        recategorizeTableEntry(*i,Name,parent_category)
 
 def create_subcategory_window():
     parent=multiplechoicemenu("Welche Kategorie soll eine Unterkategorie bekommen?",getcategories())
